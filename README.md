@@ -248,3 +248,47 @@ Subscription表示可清理资源的对象，通常Observable的执行会返回�
 ## Subject(主体) ##
 
 Subject是一种特殊的Observable，可以将值多播给多个观察者，普通的Observable是单播的。
+
+每个Subject都是Observable，可以对其使用subscribe方法。对于观察者而言，无法判断Observable的执行是来自普通的Observable还是Subject。在Subject内部，subscribe不会开启新执行，它只是将给定的观察者注册到观察者列表中。
+
+    var subject = new Rx.Subject();
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    });
+    subject.subscribe({
+        next: (x) => console.log('B' + x)
+    })
+
+    subject.next(1);
+    subject.next(2);
+
+控制台打印
+
+    A 1
+    B 1
+    A 2
+    B 2
+
+每个Subject都是观察者，Subject中有next(x)、error(e)和compelet()方法。要给Subject提供新值可以调用next(value)方法，它会将值多播给已注册监听该Subject的观察者们。
+
+    var subject = new Rx.Subject();
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    });
+    subject.subscribe({
+        next: (x) => console.log('B' + x)
+    })
+
+    var observable = new Rx.Observable.form([1,2]);
+    observable.subscribe(subject); // 提供一个subject进行订阅
+
+控制台打印
+
+    A 1
+    B 1
+    A 2
+    B 2
+
+Subject是将任意Observable执行共享给多个观察者的唯一方式。
