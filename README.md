@@ -36,7 +36,7 @@ Rx.Observable.create是Observable构造函数的别名，它接收一个参数�
 
 上面例子会每隔1秒发送字符串'hello'。
 
-> Observable可以使用create创建，也可以使用操作符（of、form、interval等）来创建。
+> Observable可以使用create创建，也可以使用操作符（of、from、interval等）来创建。
 
 ### 订阅Observable ###
 
@@ -106,7 +106,7 @@ Observable的执行过程是运行可以传递值的三种通知类型：
 
 subscription表示进行中的执行，使用`subscription.unsubscribe()`可以取消进行中的执行：
 
-    var observable = Rx.Observable.form([1,2,3]); // 使用创建操作符
+    var observable = Rx.Observable.from([1,2,3]); // 使用创建操作符
     var subscription = observable.subscribe(x => console.log(x));
     subscription.unsubscribe();
 
@@ -274,6 +274,7 @@ Subject是一种特殊的Observable，可以将值多播给多个观察者，普
 
     var subject = new Rx.Subject();
 
+    // 观察者订阅subject
     subject.subscribe({
         next: (x) => console.log('A' + x)
     });
@@ -281,7 +282,7 @@ Subject是一种特殊的Observable，可以将值多播给多个观察者，普
         next: (x) => console.log('B' + x)
     })
 
-    var observable = new Rx.Observable.form([1,2]);
+    var observable = new Rx.Observable.from([1,2]);
     observable.subscribe(subject); // 提供一个subject进行订阅
 
 控制台打印
@@ -292,3 +293,210 @@ Subject是一种特殊的Observable，可以将值多播给多个观察者，普
     B 2
 
 Subject是将任意Observable执行共享给多个观察者的唯一方式。
+
+Subject还有一些特殊类型：BehaviorSubject、ReplaySubject、AsyncSubject。
+
+### 多播的Observable ###
+
+多播Observable是通过Subject来发送通知，这个Subject可能有多个订阅者，然而普通的单播Observalbe只发送通知给单个观察者。
+
+在底层，观察者订阅一个基础的Subject，然后Subject订阅源Observable。
+
+使用多播操作符multicast改写上面的例子：
+
+    var source = new Rx.Observable.from([1,2,3]);
+    var subject = new Rx.Subject();
+    var multicasted = source.multicast(subject);
+
+    // 在底层使用了subject.subscribe({...})
+    multicasted.subscribe({
+        next: (x) => console.log('A' + x)
+    });
+    multicasted.subscribe({
+        next: (x) => console.log('B' + x)
+    });
+
+    // 在底层使用了source.subscribe(subject)
+    multicasted.connect();
+
+multicast操作符返回ConnectableObservable，它是有connect()方法的Observable。
+
+connect()方法十分重要，它决定了何时启动共享的Observable执行，因为connect()方法在底层执行了source.subscribe(subject)，所以它返回的是Subscription。
+
+通常，当第一个观察者订阅时应该让其自动连接，当最后一个观察者取消订阅时应该自动取消连接（取消共享执行）。
+
+可以这样概述Subscription发生的经过：
+
+1. 第一个观察者订阅了多播Observable
+2. 多播Observable已连接，开始执行
+3. next值0发送给第一个观察者
+4. 第二个观察者订阅了多播Observable
+5. next值1发送给第一个观察者
+6. next值1发送给第二个观察者
+7. 第一个观察者取消订阅了多播的Observable
+8. next值2发送给第二个观察者
+9. 第二个观察者取消订阅了多播的Observable
+10. 多播Observable的连接中断，取消订阅
+
+要实现上面的过程，需要显示调用connect()：
+
+    var source = new Rx.Observable.interval(500);
+    var subject = new Rx.Subject();
+    var multicasted = source.multicast(subject);
+    var subscription1, subscription2, subscriptionConnect;
+
+    subscription1 = multicasted.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    // 第一个观察者订阅后，调用connect()连接
+    subscriptionConnect = multicasted.connect();
+
+    // 第二个观察者订阅
+    setTimeout(() => {
+        subscription2 = multicasted.subscribe({
+            next: (x) => console.log('B' + x)
+        });
+    },600)
+
+    // 第一个观察者取消订阅
+    setTimeout(() => {
+        subscription1.unsubscribe();
+    },1300)
+
+    // 第二个观察者取消订阅
+    // 要取消multicasted的执行，因为此后没有订阅者了
+    setTimeout(() => {
+        subscription2.unsubscribe();
+        subscriptionConnect.unsubscribe();
+    },3000)
+
+上面例子中显式调用了connect()，并不是最优解。
+
+multicast操作符返回的ConnectObservable中有个refCount()方法，这个方法返回Observable，这个Observable会追踪有多少个订阅者。当订阅者数量从0变成1，它会调用connect()开启共享执行，当订阅者数量从1变成0时，它会完全取消订阅，停止进一步执行。
+
+> refCount方法的作用是，当有第一个订阅者时，多播Observable会自动启动执行，而当最后一个订阅者离开，多播Observable会自动停止执行。
+
+改进上面的例子：
+
+    var source = new Rx.Observable.interval(500);
+    var subject = new Rx.Subject();
+    var refCounted = source.multicast(subject).refCount();
+    var subscription1, subscription2;
+
+    // 共享的Observable开始执行
+    subscription1 = refCounted.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    // 第二个观察者订阅
+    setTimeout(() => {
+        subscription2 = refCounted.subscribe({
+            next: (x) => console.log('B' + x)
+        });
+    },600)
+
+    // 第一个观察者取消订阅
+    setTimeout(() => {
+        subscription1.unsubscribe();
+    },1300)
+
+    // 第二个观察者取消订阅
+    // 这里共享的Observable会停止执行
+    setTimeout(() => {
+        subscription2.unsubscribe();
+    },3000)
+
+需要注意的是，refCount()只存在与ConnectObservable中，它返回的是Observable。
+
+## BehaviorSubject ##
+
+BehaviorSubject保存了发送给消费者的最新值，并且当有新的观察者订阅时，会立即从BehaviorSubject那接收到当前值，即最后发送给消费者的值。
+
+使用BehaviorSubject时，需要提供初始值：
+
+    var subject = new Rx.BehaviorSubject(0); // 0是初始值
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    subject.next(1);
+    subject.next(2);
+
+    subject.subscribe({
+        next: (x) => console.log('B' + x)
+    })
+
+    subject.next(3);
+
+控制台打印
+
+    A 0
+    A 1
+    A 2
+    B 2 // B订阅后，立即获取到当前值2
+    A 3
+    B 3
+
+## ReplaySubject ##
+
+ReplaySubject可以发送旧值给新的订阅者，还可以记录Observable执行的一部分。
+它将记录Observable执行中的多个值并将其回放给新的订阅者。
+
+当创建ReplaySubject时，可以指定回放多少个值：
+
+    var subject = new Rx.Observable.ReplaySubjec(3);
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    subject.next(1);
+    subject.next(2);
+    subject.next(3);
+    subject.next(4);
+
+    subject.subscribe({
+        next: (x) => console.log('B' + x)
+    })
+
+    subject.next(5);
+
+控制台打印
+
+    A 1
+    A 2
+    A 3
+    A 4
+    B 2 // B订阅后，立即获取回放的最后3个值
+    B 3
+    B 4
+    A 5
+    B 5
+
+ReplaySubject还接收第二个参数，用来确定多久之前的值可以记录，单位毫秒。
+
+    var subject = new Rx.ReplaySubject(100,500);
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    var i = 1;
+    setInterval(() => subject.next(i++),400);
+
+    setTimeout(() => {
+        subject.subscribe({
+            next: (x) => console.log('B' + x)
+        })
+    },1000)
+
+控制台打印
+
+    A 1 // 延迟400ms
+    A 2 // 延迟400ms
+    B 2 // 延迟1000ms，B订阅了，立即获取前500ms内产生的值2
+    A 3
+    B 3
+    ...

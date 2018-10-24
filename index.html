@@ -1,14 +1,30 @@
 <!DOCTYPE html>
 <html lang="Zh">
+
 <head>
     <meta charset="UTF-8">
     <title>RxJS</title>
 </head>
+
 <body>
 
 </body>
-<script src="./rxjs.js"></script>
+<script src="./rxjs-min.js"></script>
 <script>
-    console.log(rxjs)
+    var subject = new rxjs.ReplaySubject(100, 500);
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    var i = 1;
+    setInterval(() => subject.next(i++), 400);
+
+    setTimeout(() => {
+        subject.subscribe({
+            next: (x) => console.log('B' + x)
+        })
+    }, 1000)
 </script>
+
 </html>
