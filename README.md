@@ -4,12 +4,19 @@ RxJS是一个库，它通过使用observable序列来编写异步和基于事件
 
 在RxJS中用来解决异步事件管理的基本概念是：
 
-    * Observable(可观察对象):表示一个可调用的未来值或事件的集合。
-    * Observer(观察者):一个回调函数的集合，它知道如何去监听由Observable提供的值。
-    * Subscription(订阅者):表示Observable的执行，主要用于取消Observable执行。
-    * Operators(操作符):采用函数式编程风格的纯函数，使用像map、filter、concat、flatMap等操作符来处理集合。
-    * Subject(主体):相当于EventEmitter，并且是将值或事件多路推送给多个Observer的唯一方式。
-    * Schedulers(调度器):用来控制并发并且是中央集权的调度员，允许在发生计算时进行协调。
+* [Observable(可观察对象)][Observable]:表示一个可调用的未来值或事件的集合。
+* [Observer(观察者)][Observer]:一个回调函数的集合，它知道如何去监听由Observable提供的值。
+* [Subscription(订阅者)][Subscription]:表示Observable的执行，主要用于取消Observable执行。
+* [Operators(操作符)][Operators]:采用函数式编程风格的纯函数，使用像map、filter、concat、flatMap等操作符来处理集合。
+* [Subject(主体)][Subject]:相当于EventEmitter，并且是将值或事件多路推送给多个Observer的唯一方式。
+* [Schedulers(调度器)][Schedulers]:用来控制并发并且是中央集权的调度员，允许在发生计算时进行协调。
+
+[Observable]: #Observable(可观察对象)
+[Observer]: #Observer(观察者)
+[Subscription]: #Subscription(订阅者)
+[Operators]: #Operators(操作符)
+[Subject]: #Subject(主体)
+[Schedulers]: #Schedulers(调度器)
 
 ## Observable(可观察对象) ##
 
@@ -215,7 +222,7 @@ Observalbe可以随着时间的推移**返回**多个值，这是函数所做不
 
 第一个回调函数对应接收"Next"通知，第二个回调函数接收"Error"通知，第三个回调函数接收"Complete"通知。
 
-## Subscription(订阅) ##
+## Subscription(订阅者) ##
 
 Subscription表示可清理资源的对象，通常Observable的执行会返回此对象。
 
@@ -409,7 +416,7 @@ multicast操作符返回的ConnectObservable中有个refCount()方法，这个�
 
 需要注意的是，refCount()只存在与ConnectObservable中，它返回的是Observable。
 
-## BehaviorSubject ##
+### BehaviorSubject ###
 
 BehaviorSubject保存了发送给消费者的最新值，并且当有新的观察者订阅时，会立即从BehaviorSubject那接收到当前值，即最后发送给消费者的值。
 
@@ -439,7 +446,7 @@ BehaviorSubject保存了发送给消费者的最新值，并且当有新的观�
     A 3
     B 3
 
-## ReplaySubject ##
+### ReplaySubject ###
 
 ReplaySubject可以发送旧值给新的订阅者，还可以记录Observable执行的一部分。
 它将记录Observable执行中的多个值并将其回放给新的订阅者。
@@ -500,3 +507,157 @@ ReplaySubject还接收第二个参数，用来确定多久之前的值可以记�
     A 3
     B 3
     ...
+
+### AsyncSubject ###
+
+当Observable执行完，也就是complete()执行后，会将最后一个值发送给观察者。
+
+    var subject = new Rx.AsyncSubject();
+
+    subject.subscribe({
+        next: (x) => console.log('A' + x)
+    })
+
+    subject.next(1);
+    subject.next(2);
+    subject.next(3);
+
+    subject.subscribe({
+        next: (x) => console.log('B' + x)
+    })
+
+    subject.next(4);
+    subject.complete();
+
+控制台打印
+
+    A 4
+    B 4
+
+AsyncSubject和last()操作符类似，都是等待complete()通知，再发送一个单值。
+
+## Operators(操作符) ##
+
+操作符是Observable上的方法，比如map、filter、merge等等。当操作符被调用时，他们不会改变原来的Observable实例，而是返回新的Observable，它的Subscription逻辑基于第一个Observable。
+
+操作符的本质其实就是纯函数，它接收一个Observable作为输入，并生成一个新的Observable作为输出。订阅输出的Observable会自动订阅到作为输入的Observable。
+
+可以自定义操作符函数：
+
+    function multiplyByTen(input){
+        var output = Rx.Observable.create(function subscribe(observer){
+            input.subscribe({
+                next: (x) => observer.next(x * 10),
+                error: (err) => observer.error(err),
+                complete: () => observer.complete()
+            });
+        });
+        return output;
+    }
+
+    var input = Rx.Observable.from([1, 2, 3, 4]);
+    var output = multiplyByTen(input);
+    output.subscribe(x => console.log(x));
+
+控制台打印
+
+    10
+    20
+    30
+    40
+
+上面可以发现，订阅output会导致input也被订阅，称之为操作符订阅链。
+
+### 实例操作符 ###
+
+实例操作符是Observable实例上的方法，试着把上面的例子改为实例操作符：
+
+    Rx.Observable.prototype.multiplyByTen = function(){
+        var input = this;
+        return Rx.Observable.create(function subscribe(observer){
+            input.subscribe({
+                next: (x) => observer.next(x * 10),
+                error: (err) => observer.error(err),
+                complete: () => observer.complete()
+            });
+        })
+    }
+
+实例操作符的特点是使用this关键字来指代输入参数为Observable的函数。
+
+### 静态操作符 ###
+
+静态操作符是定义在Observable类上的。它内部不使用this关键字，而是依赖与它的参数。它只接收非Observable参数，比如数字，然后创建一个新的Observable。
+
+典型的静态操作符例子是interval函数：
+
+    var observable = Rx.Observable.interval(100);
+
+## Schedulers(调度器) ##
+
+调度器控制何时启动Subscription和何时发送通知。它由三部分组成：
+
+* 调度器是一种数据结构。它知道如何根据优先级或其他标准来存储任务和将任务进行排序。
+* 调度器是执行上下文。它表示在何时何地执行任务，比如立即执行或者回调函数机制。
+* 调度器有一个虚拟时钟。通过调度器的now()方法提供了时间的概念。调度器上的任务将严格遵循该时钟所表示的时间。
+
+调度器可以规定Observable在什么样的执行上下文中发送通知给观察者。
+
+### 调度器类型 ###
+
+Rx.Scheduler.queue 适合在有递归情况下使用。
+
+Rx.Scheduler.asap 非同步执行，在setTimeout中执行。
+
+Rx.Scheduler.async 通常跟时间有关的操作符会用到，使用setInterval执行。
+
+### 使用调度器 ###
+
+使用操作符observeOn来指定调度器：
+
+    var observable = Rx.Observable.create(function (observer) {
+        observer.next(1);
+        observer.next(2);
+        observer.next(3);
+        observer.complete();
+    })
+    .observeOn(Rx.Scheduler.async);
+
+    console.log('just before subscribe');
+    observable.subscribe({
+        next: x => console.log('got value ' + x),
+        error: err => console.error('something wrong occurred: ' + err),
+        complete: () => console.log('done'),
+    });
+    console.log('just after subscribe');
+
+控制台打印
+
+    just before subscribe
+    just after subscribe
+    got value 1
+    got value 2
+    got value 3
+    done
+
+上面的例子原本是同步执行的，但是用了`observeOn(Rx.Scheduler.async)`后变成了非同步执行。
+
+静态创建操作符可以接收调度器作为第二个参数。
+
+    Rx.Observable.from(array,scheduler)
+
+以下静态创建操作符接收调度器参数：
+
+* bindCallback
+* bindNodeCallback
+* combineLatest
+* concat
+* empty
+* from
+* fromPromise
+* interval
+* merge
+* of
+* range
+* throw
+* timer
