@@ -4,19 +4,12 @@ RxJS是一个库，它通过使用observable序列来编写异步和基于事件
 
 在RxJS中用来解决异步事件管理的基本概念是：
 
-* [Observable(可观察对象)][Observable]:表示一个可调用的未来值或事件的集合。
-* [Observer(观察者)][Observer]:一个回调函数的集合，它知道如何去监听由Observable提供的值。
-* [Subscription(订阅者)][Subscription]:表示Observable的执行，主要用于取消Observable执行。
-* [Operators(操作符)][Operators]:采用函数式编程风格的纯函数，使用像map、filter、concat、flatMap等操作符来处理集合。
-* [Subject(主体)][Subject]:相当于EventEmitter，并且是将值或事件多路推送给多个Observer的唯一方式。
-* [Schedulers(调度器)][Schedulers]:用来控制并发并且是中央集权的调度员，允许在发生计算时进行协调。
-
-[Observable]: #Observable(可观察对象)
-[Observer]: #Observer(观察者)
-[Subscription]: #Subscription(订阅者)
-[Operators]: #Operators(操作符)
-[Subject]: #Subject(主体)
-[Schedulers]: #Schedulers(调度器)
+* [Observable(可观察对象)](#Observable可观察对象):表示一个可调用的未来值或事件的集合。
+* [Observer(观察者)](#Observer观察者):一个回调函数的集合，它知道如何去监听由Observable提供的值。
+* [Subscription(订阅者)](#Subscription订阅者):表示Observable的执行，主要用于取消Observable执行。
+* [Operators(操作符)](#Operators操作符):采用函数式编程风格的纯函数，使用像map、filter、concat、flatMap等操作符来处理集合。
+* [Subject(主体)](#Subject主体):相当于EventEmitter，并且是将值或事件多路推送给多个Observer的唯一方式。
+* [Schedulers(调度器)](#Schedulers调度器):用来控制并发并且是中央集权的调度员，允许在发生计算时进行协调。
 
 ## Observable(可观察对象) ##
 
